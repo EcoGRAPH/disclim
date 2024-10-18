@@ -1,4 +1,4 @@
-variable,form,rc,tmin,tmax
+variable,form,p1,p2,p3
 a,briere,0.000175776,3.490979,41.8226
 lf,quadratic,0.1210401,1.9334458,37.5509388
 bc,quadratic,0.003672395,12.11497854,38.13451902

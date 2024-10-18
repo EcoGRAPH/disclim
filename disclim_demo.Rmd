@@ -1,8 +1,7 @@
 ---
-title: "Demonstration of the disclim Package for Implementing Climate Driven, Trait-Based
-  Models of Disease Transmission"
+title: "Demonstration of the disclim Package for Implementing Climate Driven, Trait-Based Models of Disease Transmission"
 author: "Michael C. Wimberly"
-date: "2024-02-27"
+date: "2024-10-18"
 output:
   pdf_document: default
   html_document:
@@ -15,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Setup
 
-The tidyverse suite of packages is used for data manipulation and graphing, and devtools is required for the `load_all()` function. Right now `load_all()`is used to read the disclim functions from a local folder, but this should eventually be changed to install the package from GitHub and then load normally with `library()`.
+The tidyverse suite of packages is used for data manipulation and graphing, and devtools is required for the `load_all()` function. Right now, the most straightforward way to use disclim is to (1) download the package from the GitHub archive at https://github.com/EcoGRAPH/disclim and (2) install it on a local folder on your computer, and (3) use `load_all()`is used to access this folder and read the disclim functions into the local environment. Before the package can be installed directly from GitHub and loaded with the `library()` function, some additional work will be needed to formalize access to the parameter tables.
 
 ```{r loadpackages, warning=FALSE, message=FALSE}
 library(tidyverse)
@@ -24,35 +23,35 @@ mypath <- "C:/Users/wimb0002/OneDrive - University of Oklahoma/Work/disclim"
 load_all(mypath)
 ```
 
-Next, files containing the parameters are loaded. There are two sets of parameters from Miazgawicz et al. (2020) for malaria transmission by *Anopheles stephensi*, which correpond to the "estimated' and "lifetime" models. There is also a set of parameters from Mordecai et al. (2017) for dengue transmission by *Aedes aegypti*. Parameters are stored in CSV files that are currently being read in using the base R function `read.csv()`. In the future, it would be nice to have a package function that would read in the parameter files and check them for consistency.
+Next, files containing the parameters are loaded. There are two sets of parameters from Miazgawicz et al. (2020) for malaria transmission by *Anopheles stephensi*, which correspond to the "estimated' and "lifetime" models. There is also a set of parameters from Mordecai et al. (2017) for dengue transmission by *Aedes aegypti*. Parameters are stored in CSV files in the main package directory and are currently being read in using the base R function `read.csv()`. This is not really the right place for them, and future versions of the package will include a better mechanism for organizing and accessing these parameter datasets.
 
 ```{r readparams}
 mal_est_par <- read.csv(file.path(mypath, "Anstephensi_mal_est_Miazgowicz20.csv"))
 den_aegypti_par <- read.csv(file.path(mypath, "Aeaegypti_dengue_Mordecai17.csv"))
 ```
 
-## Temperature-trait relationships
+## Malaria Temperature-Trait Relationships
 
-Each parameter table is a data frame with columns for 1) the variables in the model, 2) the forms of the corresponding temperature trait curves, and 3) values of the rate constant (rc) minimum temperature (tmin) and maximum temperature (tmax) parameters for each curve. The `getpar()` function retrieves parameters for a given variable from a parater table.
+Each parameter table is a data frame with columns for 1) the variables in the model, 2) the forms of the corresponding temperature trait curves, and 3) values of the rate constant (rc) minimum temperature (tmin) and maximum temperature (tmax) parameters for each curve. The `getpar()` function retrieves parameters for a given variable from a parameter table.
 
 ```{r printparams}
 mal_est_par
-getpar("a", "rc", mal_est_par)
-getpar("a", "tmin", mal_est_par)
-getpar("a", "tmax", mal_est_par)
+getpar("a", "p1", mal_est_par)
+getpar("a", "p2", mal_est_par)
+getpar("a", "p3", mal_est_par)
 ```
 
-The `tempcurve()` function is used to calculate the trait values as a function of temperature for each variable. The function is vectorized, so a range of temperature can be provided.
+The `tempcurve()` function is used to calculate the trait values as a function of temperature for each variable. The function is vectorized, so a range of temperatures can be provided.
 
 ```{r tempcurve1}
-Temp <- seq(1, 50, 0.01)
+Temp <- seq(0, 50, 0.01)
 a <- tempcurve(Temp, "a", mal_est_par)
 ggplot() +
   geom_line(aes(x = Temp, y = a))
 
 ```
 
-This process can be repeated for all the trait variables in a particular model.
+This process can be repeated for all the trait variables in a particular model. The resulting trait estimates are then combined into a data frame and graphed.
 
 ```{r tempcurve2}
 lf <- tempcurve(Temp, "lf", mal_est_par)
@@ -75,20 +74,21 @@ ggplot(data = traitdf) +
        x = "Temperature",
        y = "Trait Values")
 ```
-# Vectorial capacity
 
-The `vc_rossmac()` function implements the temperature-dependent vectorial capacity (VC) equation derived from the Ross-Madonald malaria transmission model. Arguments include a vector of temperature values and a parameter table. The `bc` argument is set fo `TRUE` by default, indicating that a single `bc` trait variable is used for transmission. The argument should be set to `FALSE` for models where there are separate `b` and `c` trait variables, as is the case with the Mordecai et al. (2017) dengue transmission models. There is a separate `vc_life()` function for calculating VC based on the "lifetime" model from Miazgowicz et al. (2020).
+## Malaria Vectorial Capacity
+
+The `vc_rossmac()` function implements the temperature-dependent vectorial capacity (VC) equation derived from the Ross-Macdonald malaria transmission model. Arguments include a vector of temperature values and a parameter table. The `bc` argument is set fo `TRUE` by default, indicating that a single `bc` trait variable is used for transmission. The argument can be set to `FALSE` for models where there are separate `b` and `c` trait variables, as is the case with the Mordecai et al. (2017) dengue transmission models. There is also a `vc_life()` function for calculating VC based on the "lifetime" model from Miazgowicz et al. (2020). Mosquito abundance is estimated separately using the `m_trait()` function for the Ross-Macdonald model or the `m_life()`function for the lifetime model.
+
+The following example is based on the "estimated" model for malaria transmission by *Anopheles stephensi* based using parameters from Miazgowicz et al. (2020).
 
 
 ```{r vc}
-mal_est_m <- m_trait(Temp, 
-                     lf = lf, 
+mal_est_m <- m_trait(lf = lf, 
                      EFD = EFD, 
                      pEA = pEA, 
                      MDR = MDR)
 
-mal_est_vc <- vc_rossmac(Temp, 
-                         M = mal_est_m,
+mal_est_vc <- vc_rossmac(M = mal_est_m,
                          a = a,
                          lf = lf,
                          PDR = PDR,
@@ -106,7 +106,9 @@ ggplot(data = mal_df) +
   labs(y = "Model Output", x = "Temperature")
 ```
 
-The vectorial capacity equations incorporate trait-based estimates of the mosquito abundance parameter (M). These values can also be extracted nad plotted as a function of temperature.
+## Dengue Temperature-Trait Relationships
+
+This example shows the temperature-trait curves for dengue transmission by *Aedes aegypti* based on the parameters reported in Mordecai et al. (2017).
 
 ```{r tempdurve3}
 a <- tempcurve(Temp, "a", den_aegypti_par)
@@ -133,17 +135,17 @@ ggplot(data = traitdf) +
 
 ```
 
+## Dengue Vectorial Capacity
 
+Finally, this example shows the estimates of mosquito abundance and vectorial capacity for dengue transmission by *Aedes aegypti* based on the temperature-trait curves shown in the last section. Note the `bcvar = FALSE` argument used in the `vc_rossmac()` function.
 
 ```{r vc2}
-den_est_m <- m_trait(Temp, 
-                     lf = lf, 
+den_est_m <- m_trait(lf = lf, 
                      EFD = EFD, 
                      pEA = pEA, 
                      MDR = MDR)
 
-den_est_vc <- vc_rossmac(Temp, 
-                         M = mal_est_m,
+den_est_vc <- vc_rossmac(M = mal_est_m,
                          a = a,
                          lf = lf,
                          PDR = PDR,
@@ -161,3 +163,82 @@ ggplot(data = den_df) +
   facet_wrap(~ model, scales = "free_y", ncol = 1) +
   labs(y = "Model Output", x = "Temperature")
 ```
+
+## Temperature and Humidity Effects
+
+The `thcurve()` function is used to calculate temperature-dependent trait curves where the parameters vary with humidity. A file of parameters is loaded that contains parameters for temperature-trait curves estimated at five levels of relative humidity (30%, 45%, 60%, 75%, 90%). The `rm_trait()` function and the `m_trait()` are then used to calculate the maximum growth rate (rmj based only on temperature-dependent juvenile traits and rm based on temperature-dependent juvenile and adult traits) and the equilibrium mosquito abundance (m based on temperature-dependent juvenile and adult traits) as indices of environmental suitability.
+
+```{r rh}
+pars_th <- read.csv(file.path(mypath, "Anstephensi_th_mal.csv"))
+
+for(rh in c(30, 45, 60, 75, 90)) {
+  assign(paste0("a", rh), thcurve(Temp, rh, "a", pars_th))
+  assign(paste0("bmax", rh), thcurve(Temp, rh, "bmax", pars_th))
+  assign(paste0("z", rh), thcurve(Temp, rh, "z", pars_th))
+  assign(paste0("zj", rh), thcurve(Temp, rh, "zj", pars_th))
+  assign(paste0("rmj", rh), rm_trait(zj = get(paste0("zj", rh)), 
+                                     a = get(paste0("a", rh)), 
+                                     bmax = 11.4, 
+                                     z = 1/0.12))
+  assign(paste0("rm", rh), rm_trait(zj = get(paste0("zj", rh)), 
+                                    a = get(paste0("a", rh)), 
+                                    bmax = get(paste0("bmax", rh)), 
+                                    z = get(paste0("z", rh))))
+  assign(paste0("mdens", rh), m_trait(pEA = get(paste0("zj", rh)), 
+                                      MDR = 1/get(paste0("a", rh)), 
+                                      EFD = get(paste0("bmax", rh)), 
+                                      lf = get(paste0("z", rh))))
+}
+
+rh <- rep(c(30, 45, 60, 75, 90), each = length(Temp))
+temp <- rep(Temp, 5)
+a <- c(a30, a45, a60, a75, a90)
+bmax <- c(bmax30, bmax45, bmax60, bmax75, bmax90)
+z <- c(z30, z45, z60, z75, z90)
+zj <- c(zj30, zj45, zj60, zj75, zj90)
+rmj <- c(rmj30, rmj45, rmj60, rmj75, rmj90)
+rm <- c(rm30, rm45, rm60, rm75, rm90)
+mdens <- c(mdens30, mdens45, mdens60, mdens75, mdens90)
+
+rmj_sum <- tibble(rmj, rh, temp)
+rm_sum <- tibble(rm, rh, temp)
+mdens_sum <- tibble(mdens, rh, temp, a, bmax, z, zj)
+
+ggplot(data = rmj_sum) +
+  geom_line(aes(x = temp, y = rmj, col = as.factor(rh))) +
+  labs(y = "Rm (juvenile)", x = "Temperature", color = "RH") +
+  ylim(0, 0.3)
+
+ggplot(data = rm_sum) +
+  geom_line(aes(x = temp, y = rm, col = as.factor(rh))) +
+  labs(y = "Rm (juvenile + adult)", x = "Temperature", color = "RH") +
+  ylim(0, 0.5)
+
+ggplot(data = mdens_sum) +
+  geom_line(aes(x = temp, y = mdens, col = as.factor(rh))) +
+  labs(y = "m (juvenile + adult)", x = "Temperature", color = "RH")
+```
+
+## Calculating Temperature and Humidity Dependent Traits
+
+This example shows how to calculate weather-dependent traits and environmental suitability indices using a table of temperature humidity values. An `rhvalues` parameter is used with the `thcurve()` function to specify a vector of relative humidity value (30%, 45%, 60%, 75%, and 90%) that are present in the parameter table. The function then extracts the value from this vector that is closest to the input value and uses it to extract the appropriate parameters from the lookup table. The `th_curve()`, `rm_trait()`, and `m_trait()` functions are implemented using the `mutate()` function so that the trait values and environmental suitability indices they return are added as new columns to the data frame.
+
+```{r rh2}
+temp <- rep(c(20, 25, 30, 35), each = 4)
+rh <- rep(c(30, 50, 70, 90), times = 4)
+climate <- tibble(temp, rh)
+
+rhvals <- c(30, 45, 60, 75, 90)
+
+climate2 <- climate %>%
+  mutate(a = thcurve(temp, rh, "a", pars_th, rhvals),
+         bmax = thcurve(temp, rh, "bmax", pars_th, rhvals),
+         zj = thcurve(temp, rh, "zj", pars_th, rhvals),
+         z = thcurve(temp, rh, "z", pars_th, rhvals),
+         rmj = rm_trait(zj, a, bmax = 11.4, z = 1/0.12),
+         rm = rm_trait(zj, a, bmax, z),
+         mdens = m_trait(pEA = zj, MDR = 1/a, EFD = bmax, lf = z))         
+climate2
+
+```
+
